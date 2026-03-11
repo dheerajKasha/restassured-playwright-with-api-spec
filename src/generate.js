@@ -8,7 +8,7 @@ function mergeCases(heuristicCases, llmCases) {
   return [...heuristicCases, ...llmCases];
 }
 
-async function buildArtifacts(spec, outputPath, options = {}) {
+async function generateFromSpec(spec, outputPath, options = {}) {
   const operations = collectOperations(spec);
   const heuristicCases = operations.flatMap((operation) => buildTestCases(operation, spec));
   const llm = await generateLlmCases({
@@ -32,13 +32,13 @@ async function buildArtifacts(spec, outputPath, options = {}) {
 
 async function generateFromFile(inputPath, outputPath, options) {
   const spec = loadSpec(inputPath);
-  return buildArtifacts(spec, outputPath, options);
+  return generateFromSpec(spec, outputPath, options);
 }
 
 async function generateFromText(specText, fileType, outputPath, options) {
   const extension = fileType === "json" ? ".json" : ".yaml";
   const spec = parseSpecContent(specText, extension);
-  return buildArtifacts(spec, outputPath, options);
+  return generateFromSpec(spec, outputPath, options);
 }
 
 function readOutputFiles(outputs) {
@@ -49,6 +49,7 @@ function readOutputFiles(outputs) {
 }
 
 module.exports = {
+  generateFromSpec,
   generateFromFile,
   generateFromText,
   readOutputFiles
