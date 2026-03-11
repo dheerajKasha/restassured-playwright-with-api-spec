@@ -19,6 +19,11 @@ paths:
           description: Invalid request
 `;
 
+const editorState = {
+  yaml: sampleSpec,
+  json: ""
+};
+
 const specInput = document.querySelector("#specInput");
 const fileType = document.querySelector("#fileType");
 const useLlm = document.querySelector("#useLlm");
@@ -30,7 +35,7 @@ const restAssuredCode = document.querySelector("#restassured");
 const playwrightCode = document.querySelector("#playwright");
 const tabs = document.querySelectorAll(".tab");
 
-specInput.value = sampleSpec;
+specInput.value = editorState[fileType.value];
 
 function setActiveTab(targetId) {
   tabs.forEach((tab) => {
@@ -42,11 +47,23 @@ function setActiveTab(targetId) {
   });
 }
 
+function syncCurrentEditorState() {
+  editorState[fileType.value] = specInput.value;
+}
+
+specInput.addEventListener("input", syncCurrentEditorState);
+
+fileType.addEventListener("change", () => {
+  specInput.value = editorState[fileType.value];
+  specInput.focus();
+});
+
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => setActiveTab(tab.dataset.target));
 });
 
 generateButton.addEventListener("click", async () => {
+  syncCurrentEditorState();
   stats.textContent = "Generating...";
   llmStatus.textContent = useLlm.checked ? "LLM mode requested." : "LLM mode is off.";
   paths.innerHTML = "";
@@ -58,7 +75,7 @@ generateButton.addEventListener("click", async () => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        specText: specInput.value,
+        specText: editorState[fileType.value],
         fileType: fileType.value,
         useLlm: useLlm.checked
       })
