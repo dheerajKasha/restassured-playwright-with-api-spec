@@ -1,0 +1,15 @@
+{
+  "name": "restassured-playwright-with-api-spec",
+  "version": "0.1.0",
+  "description": "Generate REST Assured and Playwright API tests from an OpenAPI spec.",
+  "type": "commonjs",
+  "bin": {
+    "api-test-generator": "./src/index.js"
+  },
+  "scripts": {
+    "generate": "node src/index.js --input examples/user-api.yaml --output generated"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}
