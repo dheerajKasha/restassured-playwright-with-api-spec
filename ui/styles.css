@@ -5,6 +5,8 @@
   --accent: #d97706;
   --accent-dark: #9a3412;
   --border: #e5dccd;
+  --error-bg: #fff2ef;
+  --error-border: #ef4444;
 }
 
 * {
@@ -124,6 +126,36 @@ textarea {
   overflow-y: hidden;
   background: transparent;
   line-height: 1.45;
+}
+
+.validation-panel {
+  border-top: 1px solid var(--border);
+  background: var(--error-bg);
+  padding: 14px 18px 18px;
+}
+
+.validation-panel.hidden {
+  display: none;
+}
+
+.validation-title {
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: #991b1b;
+}
+
+.validation-item {
+  border-left: 3px solid var(--error-border);
+  padding: 8px 0 8px 12px;
+}
+
+.validation-item + .validation-item {
+  margin-top: 10px;
+}
+
+.validation-line {
+  font-weight: 700;
+  margin-bottom: 4px;
 }
 
 .stats,
