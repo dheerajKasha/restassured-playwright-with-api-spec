@@ -49,6 +49,7 @@ body {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   margin-top: 28px;
+  align-items: start;
 }
 
 .panel {
@@ -57,6 +58,11 @@ body {
   border-radius: 20px;
   box-shadow: 0 20px 40px rgba(20, 33, 61, 0.08);
   overflow: hidden;
+}
+
+.input-panel {
+  display: flex;
+  flex-direction: column;
 }
 
 .toolbar,
@@ -109,12 +115,15 @@ button {
 }
 
 textarea {
+  display: block;
   width: 100%;
   min-height: 620px;
   border: none;
   padding: 18px;
-  resize: vertical;
+  resize: none;
+  overflow-y: hidden;
   background: transparent;
+  line-height: 1.45;
 }
 
 .stats,

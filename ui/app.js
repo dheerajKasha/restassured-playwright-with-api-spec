@@ -47,20 +47,37 @@ function setActiveTab(targetId) {
   });
 }
 
+function getEditorMaxHeight() {
+  const viewportRatio = window.innerWidth < 960 ? 0.56 : 0.72;
+  return Math.max(420, Math.floor(window.innerHeight * viewportRatio));
+}
+
+function resizeEditor() {
+  specInput.style.height = "auto";
+  const targetHeight = Math.min(specInput.scrollHeight, getEditorMaxHeight());
+  specInput.style.height = `${Math.max(420, targetHeight)}px`;
+  specInput.style.overflowY = specInput.scrollHeight > getEditorMaxHeight() ? "auto" : "hidden";
+}
+
 function syncCurrentEditorState() {
   editorState[fileType.value] = specInput.value;
+  resizeEditor();
 }
 
 specInput.addEventListener("input", syncCurrentEditorState);
+window.addEventListener("resize", resizeEditor);
 
 fileType.addEventListener("change", () => {
   specInput.value = editorState[fileType.value];
+  resizeEditor();
   specInput.focus();
 });
 
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => setActiveTab(tab.dataset.target));
 });
+
+resizeEditor();
 
 generateButton.addEventListener("click", async () => {
   syncCurrentEditorState();
