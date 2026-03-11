@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>API Test Generator</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">OpenAPI to tests</p>
+        <h1>Generate REST Assured and Playwright API tests from your spec.</h1>
+        <p class="lede">Paste a Swagger or OpenAPI document, choose YAML or JSON, and inspect generated test code plus runnable project paths.</p>
+      </section>
+
+      <section class="workspace">
+        <div class="panel input-panel">
+          <div class="toolbar">
+            <label>
+              Spec format
+              <select id="fileType">
+                <option value="yaml">YAML</option>
+                <option value="json">JSON</option>
+              </select>
+            </label>
+            <button id="generateButton">Generate tests</button>
+          </div>
+          <textarea id="specInput" spellcheck="false"></textarea>
+        </div>
+
+        <div class="panel output-panel">
+          <div class="stats" id="stats">Ready for a spec.</div>
+          <div class="paths" id="paths"></div>
+          <div class="tabs">
+            <button class="tab active" data-target="restassured">REST Assured</button>
+            <button class="tab" data-target="playwright">Playwright</button>
+          </div>
+          <pre id="restassured" class="code active"></pre>
+          <pre id="playwright" class="code"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

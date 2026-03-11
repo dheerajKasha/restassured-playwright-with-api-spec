@@ -4,15 +4,18 @@ const yaml = require("js-yaml");
 
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
 
-function loadSpec(filePath) {
-  const content = fs.readFileSync(filePath, "utf8");
-  const extension = path.extname(filePath).toLowerCase();
-
+function parseSpecContent(content, extension) {
   if (extension === ".yaml" || extension === ".yml") {
     return yaml.load(content);
   }
 
   return JSON.parse(content);
+}
+
+function loadSpec(filePath) {
+  const content = fs.readFileSync(filePath, "utf8");
+  const extension = path.extname(filePath).toLowerCase();
+  return parseSpecContent(content, extension);
 }
 
 function resolveSchema(schemaOrRef, spec) {
@@ -82,6 +85,7 @@ function collectOperations(spec) {
 }
 
 module.exports = {
+  parseSpecContent,
   loadSpec,
   collectOperations,
   resolveSchema
