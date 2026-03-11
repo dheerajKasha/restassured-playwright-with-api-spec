@@ -38,12 +38,14 @@ function main() {
   writeOutputs({
     operations,
     cases,
-    outputPath
+    outputPath,
+    specTitle: spec.info && spec.info.title ? spec.info.title : "Generated API"
   });
 
-  console.log(
-    `Generated ${cases.length} test cases across ${operations.length} operations into ${outputPath}`
-  );
+  console.log(`Generated ${cases.length} test cases across ${operations.length} operations into ${outputPath}`);
+  console.log(`Runnable scaffolds:`);
+  console.log(`- ${path.join(outputPath, "restassured-project")}`);
+  console.log(`- ${path.join(outputPath, "playwright-project")}`);
 }
 
 try {
