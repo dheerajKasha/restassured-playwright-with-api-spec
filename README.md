@@ -5,6 +5,7 @@ This repo contains a generator that reads an OpenAPI / Swagger file and produces
 - REST Assured test stubs
 - Playwright API test stubs
 - runnable Maven and Playwright project scaffolds
+- a local web/API UI for interactive generation
 - happy-path, negative, and edge-oriented scenarios
 
 ## Quick start
@@ -21,12 +22,24 @@ npm.cmd install
 npm.cmd run generate
 ```
 
-3. Output will be written to:
+3. Start the local web/API UI:
+
+```powershell
+npm.cmd run ui
+```
+
+Then open `http://127.0.0.1:3001`.
+
+## Output
+
+A generation run writes:
 
 - `generated/restassured/GeneratedApiTest.java`
 - `generated/playwright/generated-api.spec.js`
 - `generated/restassured-project/`
 - `generated/playwright-project/`
+
+The UI writes preview runs into `.tmp/ui-runs/`.
 
 ## Run against your own spec
 
