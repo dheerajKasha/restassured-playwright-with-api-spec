@@ -31,6 +31,8 @@ const generateButton = document.querySelector("#generateButton");
 const stats = document.querySelector("#stats");
 const llmStatus = document.querySelector("#llmStatus");
 const paths = document.querySelector("#paths");
+const validationPanel = document.querySelector("#validationPanel");
+const validationList = document.querySelector("#validationList");
 const restAssuredCode = document.querySelector("#restassured");
 const playwrightCode = document.querySelector("#playwright");
 const tabs = document.querySelectorAll(".tab");
@@ -47,14 +49,57 @@ function setActiveTab(targetId) {
   });
 }
 
-function syncCurrentEditorState() {
-  editorState[fileType.value] = specInput.value;
+function getEditorMaxHeight() {
+  const viewportRatio = window.innerWidth < 960 ? 0.56 : 0.72;
+  return Math.max(420, Math.floor(window.innerHeight * viewportRatio));
 }
 
-specInput.addEventListener("input", syncCurrentEditorState);
+function resizeEditor() {
+  specInput.style.height = "auto";
+  const targetHeight = Math.min(specInput.scrollHeight, getEditorMaxHeight());
+  specInput.style.height = `${Math.max(420, targetHeight)}px`;
+  specInput.style.overflowY = specInput.scrollHeight > getEditorMaxHeight() ? "auto" : "hidden";
+}
+
+function clearValidationErrors() {
+  validationPanel.classList.add("hidden");
+  validationList.innerHTML = "";
+}
+
+function renderValidationErrors(errors) {
+  if (!errors || errors.length === 0) {
+    clearValidationErrors();
+    return;
+  }
+
+  validationPanel.classList.remove("hidden");
+  validationList.innerHTML = errors
+    .map(
+      (error) => `
+        <article class="validation-item">
+          <div class="validation-line">Line ${error.line}, column ${error.column}</div>
+          <div>${error.message}</div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function syncCurrentEditorState() {
+  editorState[fileType.value] = specInput.value;
+  resizeEditor();
+}
+
+specInput.addEventListener("input", () => {
+  clearValidationErrors();
+  syncCurrentEditorState();
+});
+window.addEventListener("resize", resizeEditor);
 
 fileType.addEventListener("change", () => {
+  clearValidationErrors();
   specInput.value = editorState[fileType.value];
+  resizeEditor();
   specInput.focus();
 });
 
@@ -62,8 +107,11 @@ tabs.forEach((tab) => {
   tab.addEventListener("click", () => setActiveTab(tab.dataset.target));
 });
 
+resizeEditor();
+
 generateButton.addEventListener("click", async () => {
   syncCurrentEditorState();
+  clearValidationErrors();
   stats.textContent = "Generating...";
   llmStatus.textContent = useLlm.checked ? "LLM mode requested." : "LLM mode is off.";
   paths.innerHTML = "";
@@ -84,6 +132,7 @@ generateButton.addEventListener("click", async () => {
     const payload = await response.json();
 
     if (!response.ok) {
+      renderValidationErrors(payload.validationErrors || []);
       throw new Error(payload.error || "Generation failed.");
     }
 
