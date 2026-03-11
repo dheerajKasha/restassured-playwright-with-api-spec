@@ -1,12 +1,23 @@
 const fs = require("fs");
-const path = require("path");
 const { loadSpec, parseSpecContent, collectOperations } = require("./openapi");
 const { buildTestCases } = require("./test-cases");
+const { generateLlmCases } = require("./llm-generator");
 const { writeOutputs } = require("./writers");
 
-function buildArtifacts(spec, outputPath) {
+function mergeCases(heuristicCases, llmCases) {
+  return [...heuristicCases, ...llmCases];
+}
+
+async function generateFromSpec(spec, outputPath, options = {}) {
   const operations = collectOperations(spec);
-  const cases = operations.flatMap((operation) => buildTestCases(operation, spec));
+  const heuristicCases = operations.flatMap((operation) => buildTestCases(operation, spec));
+  const llm = await generateLlmCases({
+    spec,
+    operations,
+    heuristicCases,
+    useLlm: Boolean(options.useLlm)
+  });
+  const cases = mergeCases(heuristicCases, llm.cases);
   const specTitle = spec.info && spec.info.title ? spec.info.title : "Generated API";
   const outputs = writeOutputs({ operations, cases, outputPath, specTitle });
 
@@ -14,19 +25,20 @@ function buildArtifacts(spec, outputPath) {
     specTitle,
     operations,
     cases,
-    outputs
+    outputs,
+    llm
   };
 }
 
-function generateFromFile(inputPath, outputPath) {
+async function generateFromFile(inputPath, outputPath, options) {
   const spec = loadSpec(inputPath);
-  return buildArtifacts(spec, outputPath);
+  return generateFromSpec(spec, outputPath, options);
 }
 
-function generateFromText(specText, fileType, outputPath) {
+async function generateFromText(specText, fileType, outputPath, options) {
   const extension = fileType === "json" ? ".json" : ".yaml";
   const spec = parseSpecContent(specText, extension);
-  return buildArtifacts(spec, outputPath);
+  return generateFromSpec(spec, outputPath, options);
 }
 
 function readOutputFiles(outputs) {
@@ -37,6 +49,7 @@ function readOutputFiles(outputs) {
 }
 
 module.exports = {
+  generateFromSpec,
   generateFromFile,
   generateFromText,
   readOutputFiles

@@ -6,7 +6,7 @@ This repo contains a generator that reads an OpenAPI / Swagger file and produces
 - Playwright API test stubs
 - runnable Maven and Playwright project scaffolds
 - a local web/API UI for interactive generation
-- happy-path, negative, and edge-oriented scenarios
+- heuristic and optional LLM-enhanced edge-case generation
 
 ## Quick start
 
@@ -30,6 +30,18 @@ npm.cmd run ui
 
 Then open `http://127.0.0.1:3001`.
 
+## Optional LLM mode
+
+If you set `OPENAI_API_KEY`, the generator can ask an OpenAI model for additional high-value negative and edge cases.
+
+```powershell
+$env:OPENAI_API_KEY="your-key"
+$env:OPENAI_MODEL="gpt-5"
+node src/index.js --input examples/user-api.yaml --output generated --llm
+```
+
+The UI also includes a `Use LLM enhancements` toggle.
+
 ## Output
 
 A generation run writes:
@@ -40,12 +52,6 @@ A generation run writes:
 - `generated/playwright-project/`
 
 The UI writes preview runs into `.tmp/ui-runs/`.
-
-## Run against your own spec
-
-```powershell
-node src/index.js --input path\to\openapi.yaml --output generated
-```
 
 ## Run the generated projects
 
@@ -69,6 +75,6 @@ npm test
 ## Notes
 
 - YAML and JSON specs are supported.
-- The generator is intentionally heuristic-based for the MVP.
+- Without `OPENAI_API_KEY`, the generator falls back to heuristic-only mode.
 - Runnable projects use environment-driven base URL configuration.
-- The scaffold ships with current REST Assured, JUnit, and Playwright dependency versions as of March 11, 2026.
+- The scaffold ships with current REST Assured, JUnit, Playwright, and OpenAI SDK dependency versions as of March 11, 2026.

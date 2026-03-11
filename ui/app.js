@@ -19,16 +19,25 @@ paths:
           description: Invalid request
 `;
 
+const editorState = {
+  yaml: sampleSpec,
+  json: ""
+};
+
 const specInput = document.querySelector("#specInput");
 const fileType = document.querySelector("#fileType");
+const useLlm = document.querySelector("#useLlm");
 const generateButton = document.querySelector("#generateButton");
 const stats = document.querySelector("#stats");
+const llmStatus = document.querySelector("#llmStatus");
 const paths = document.querySelector("#paths");
+const validationPanel = document.querySelector("#validationPanel");
+const validationList = document.querySelector("#validationList");
 const restAssuredCode = document.querySelector("#restassured");
 const playwrightCode = document.querySelector("#playwright");
 const tabs = document.querySelectorAll(".tab");
 
-specInput.value = sampleSpec;
+specInput.value = editorState[fileType.value];
 
 function setActiveTab(targetId) {
   tabs.forEach((tab) => {
@@ -40,12 +49,71 @@ function setActiveTab(targetId) {
   });
 }
 
+function getEditorMaxHeight() {
+  const viewportRatio = window.innerWidth < 960 ? 0.56 : 0.72;
+  return Math.max(420, Math.floor(window.innerHeight * viewportRatio));
+}
+
+function resizeEditor() {
+  specInput.style.height = "auto";
+  const targetHeight = Math.min(specInput.scrollHeight, getEditorMaxHeight());
+  specInput.style.height = `${Math.max(420, targetHeight)}px`;
+  specInput.style.overflowY = specInput.scrollHeight > getEditorMaxHeight() ? "auto" : "hidden";
+}
+
+function clearValidationErrors() {
+  validationPanel.classList.add("hidden");
+  validationList.innerHTML = "";
+}
+
+function renderValidationErrors(errors) {
+  if (!errors || errors.length === 0) {
+    clearValidationErrors();
+    return;
+  }
+
+  validationPanel.classList.remove("hidden");
+  validationList.innerHTML = errors
+    .map(
+      (error) => `
+        <article class="validation-item">
+          <div class="validation-line">Line ${error.line}, column ${error.column}</div>
+          <div>${error.message}</div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function syncCurrentEditorState() {
+  editorState[fileType.value] = specInput.value;
+  resizeEditor();
+}
+
+specInput.addEventListener("input", () => {
+  clearValidationErrors();
+  syncCurrentEditorState();
+});
+window.addEventListener("resize", resizeEditor);
+
+fileType.addEventListener("change", () => {
+  clearValidationErrors();
+  specInput.value = editorState[fileType.value];
+  resizeEditor();
+  specInput.focus();
+});
+
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => setActiveTab(tab.dataset.target));
 });
 
+resizeEditor();
+
 generateButton.addEventListener("click", async () => {
+  syncCurrentEditorState();
+  clearValidationErrors();
   stats.textContent = "Generating...";
+  llmStatus.textContent = useLlm.checked ? "LLM mode requested." : "LLM mode is off.";
   paths.innerHTML = "";
 
   try {
@@ -55,18 +123,21 @@ generateButton.addEventListener("click", async () => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        specText: specInput.value,
-        fileType: fileType.value
+        specText: editorState[fileType.value],
+        fileType: fileType.value,
+        useLlm: useLlm.checked
       })
     });
 
     const payload = await response.json();
 
     if (!response.ok) {
+      renderValidationErrors(payload.validationErrors || []);
       throw new Error(payload.error || "Generation failed.");
     }
 
     stats.textContent = `${payload.specTitle}: ${payload.operations} operations, ${payload.testCases} generated test cases.`;
+    llmStatus.textContent = `LLM: ${payload.llm.reason}${payload.llm.used ? `, added ${payload.llm.cases.length} cases.` : "."}`;
     restAssuredCode.textContent = payload.rawTests.restAssured;
     playwrightCode.textContent = payload.rawTests.playwright;
     paths.innerHTML = `
@@ -76,6 +147,7 @@ generateButton.addEventListener("click", async () => {
     setActiveTab("restassured");
   } catch (error) {
     stats.textContent = error.message;
+    llmStatus.textContent = "LLM status unavailable.";
     restAssuredCode.textContent = "";
     playwrightCode.textContent = "";
   }

@@ -1,7 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
-const { generateFromText, readOutputFiles } = require("./generate");
+const { validateSpecContent } = require("./openapi");
+const { generateFromSpec, readOutputFiles } = require("./generate");
 
 const PORT = Number(process.env.PORT || 3001);
 const UI_DIR = path.join(__dirname, "..", "ui");
@@ -60,20 +61,36 @@ async function handleGenerate(request, response) {
     const payload = JSON.parse(rawBody || "{}");
     const specText = normalizeSpecText(payload.specText);
     const fileType = payload.fileType === "json" ? "json" : "yaml";
+    const useLlm = Boolean(payload.useLlm);
 
     if (!specText.trim()) {
-      sendJson(response, 400, { error: "Please provide an OpenAPI spec." });
+      sendJson(response, 400, {
+        error: "Please provide an OpenAPI spec.",
+        validationErrors: [{ line: 1, column: 1, message: "The spec editor is empty." }]
+      });
+      return;
+    }
+
+    const extension = fileType === "json" ? ".json" : ".yaml";
+    const validation = validateSpecContent(specText, extension);
+
+    if (!validation.valid) {
+      sendJson(response, 400, {
+        error: "Validation failed.",
+        validationErrors: validation.errors
+      });
       return;
     }
 
     const runDir = createRunDirectory();
-    const result = generateFromText(specText, fileType, runDir);
+    const result = await generateFromSpec(validation.spec, runDir, { useLlm });
     const files = readOutputFiles(result.outputs);
 
     sendJson(response, 200, {
       specTitle: result.specTitle,
       operations: result.operations.length,
       testCases: result.cases.length,
+      llm: result.llm,
       rawTests: files,
       scaffoldDirs: {
         restAssured: result.outputs.restAssuredProjectDir,

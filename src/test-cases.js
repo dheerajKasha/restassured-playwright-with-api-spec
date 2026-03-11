@@ -151,6 +151,7 @@ function buildTestCases(operation, spec) {
   const negativeStatus = pickNegativeStatus(operation.responses);
 
   cases.push({
+    source: "heuristic",
     operationId: operation.operationId,
     name: makeMethodName("should", operation.operationId, "ReturnSuccessForValidRequest"),
     description: `${operation.method} ${operation.path} returns success for a valid request`,
@@ -172,6 +173,7 @@ function buildTestCases(operation, spec) {
       }
 
       cases.push({
+        source: "heuristic",
         operationId: operation.operationId,
         name: makeMethodName("should", operation.operationId, `Return${negativeStatus}ForInvalid${parameterName}`),
         description: `${operation.method} ${operation.path} rejects invalid ${parameter.name}`,
@@ -190,6 +192,7 @@ function buildTestCases(operation, spec) {
       }
 
       cases.push({
+        source: "heuristic",
         operationId: operation.operationId,
         name: makeMethodName("should", operation.operationId, `HandleEdgeCaseFor${parameterName}`),
         description: `${operation.method} ${operation.path} covers edge conditions for ${parameter.name}`,
@@ -206,6 +209,7 @@ function buildTestCases(operation, spec) {
       delete body[requiredFields[0]];
 
       cases.push({
+        source: "heuristic",
         operationId: operation.operationId,
         name: makeMethodName("should", operation.operationId, `Return${negativeStatus}ForMissingRequiredBodyField`),
         description: `${operation.method} ${operation.path} rejects body without ${requiredFields[0]}`,
@@ -219,5 +223,7 @@ function buildTestCases(operation, spec) {
 }
 
 module.exports = {
-  buildTestCases
+  buildTestCases,
+  toPascalCase,
+  makeMethodName
 };
