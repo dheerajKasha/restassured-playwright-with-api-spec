@@ -153,31 +153,28 @@ function writeOutputs({ operations, cases, outputPath, specTitle }) {
   const playwrightDir = path.join(outputPath, "playwright");
   const restAssuredProjectDir = path.join(outputPath, "restassured-project");
   const playwrightProjectDir = path.join(outputPath, "playwright-project");
+  const restAssuredFile = path.join(restAssuredDir, "GeneratedApiTest.java");
+  const playwrightFile = path.join(playwrightDir, "generated-api.spec.js");
 
-  writeFile(
-    path.join(restAssuredDir, "GeneratedApiTest.java"),
-    renderRestAssuredFile(operations, cases, false)
-  );
-
-  writeFile(
-    path.join(playwrightDir, "generated-api.spec.js"),
-    renderPlaywrightFile(operations, cases)
-  );
-
+  writeFile(restAssuredFile, renderRestAssuredFile(operations, cases, false));
+  writeFile(playwrightFile, renderPlaywrightFile(operations, cases));
   writeFile(path.join(restAssuredProjectDir, "pom.xml"), renderPomXml());
   writeFile(
     path.join(restAssuredProjectDir, "src", "test", "java", "com", "generated", "api", "GeneratedApiTest.java"),
     renderRestAssuredFile(operations, cases, true)
   );
   writeFile(path.join(restAssuredProjectDir, "README.md"), renderRestAssuredReadme(specTitle));
-
   writeFile(path.join(playwrightProjectDir, "package.json"), renderPlaywrightPackageJson());
   writeFile(path.join(playwrightProjectDir, "playwright.config.js"), renderPlaywrightConfig());
-  writeFile(
-    path.join(playwrightProjectDir, "tests", "generated-api.spec.js"),
-    renderPlaywrightFile(operations, cases)
-  );
+  writeFile(path.join(playwrightProjectDir, "tests", "generated-api.spec.js"), renderPlaywrightFile(operations, cases));
   writeFile(path.join(playwrightProjectDir, "README.md"), renderPlaywrightReadme(specTitle));
+
+  return {
+    restAssuredFile,
+    playwrightFile,
+    restAssuredProjectDir,
+    playwrightProjectDir
+  };
 }
 
 module.exports = {
