@@ -60,6 +60,7 @@ async function handleGenerate(request, response) {
     const payload = JSON.parse(rawBody || "{}");
     const specText = normalizeSpecText(payload.specText);
     const fileType = payload.fileType === "json" ? "json" : "yaml";
+    const useLlm = Boolean(payload.useLlm);
 
     if (!specText.trim()) {
       sendJson(response, 400, { error: "Please provide an OpenAPI spec." });
@@ -67,13 +68,14 @@ async function handleGenerate(request, response) {
     }
 
     const runDir = createRunDirectory();
-    const result = generateFromText(specText, fileType, runDir);
+    const result = await generateFromText(specText, fileType, runDir, { useLlm });
     const files = readOutputFiles(result.outputs);
 
     sendJson(response, 200, {
       specTitle: result.specTitle,
       operations: result.operations.length,
       testCases: result.cases.length,
+      llm: result.llm,
       rawTests: files,
       scaffoldDirs: {
         restAssured: result.outputs.restAssuredProjectDir,

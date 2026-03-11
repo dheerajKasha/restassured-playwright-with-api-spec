@@ -21,8 +21,10 @@ paths:
 
 const specInput = document.querySelector("#specInput");
 const fileType = document.querySelector("#fileType");
+const useLlm = document.querySelector("#useLlm");
 const generateButton = document.querySelector("#generateButton");
 const stats = document.querySelector("#stats");
+const llmStatus = document.querySelector("#llmStatus");
 const paths = document.querySelector("#paths");
 const restAssuredCode = document.querySelector("#restassured");
 const playwrightCode = document.querySelector("#playwright");
@@ -46,6 +48,7 @@ tabs.forEach((tab) => {
 
 generateButton.addEventListener("click", async () => {
   stats.textContent = "Generating...";
+  llmStatus.textContent = useLlm.checked ? "LLM mode requested." : "LLM mode is off.";
   paths.innerHTML = "";
 
   try {
@@ -56,7 +59,8 @@ generateButton.addEventListener("click", async () => {
       },
       body: JSON.stringify({
         specText: specInput.value,
-        fileType: fileType.value
+        fileType: fileType.value,
+        useLlm: useLlm.checked
       })
     });
 
@@ -67,6 +71,7 @@ generateButton.addEventListener("click", async () => {
     }
 
     stats.textContent = `${payload.specTitle}: ${payload.operations} operations, ${payload.testCases} generated test cases.`;
+    llmStatus.textContent = `LLM: ${payload.llm.reason}${payload.llm.used ? `, added ${payload.llm.cases.length} cases.` : "."}`;
     restAssuredCode.textContent = payload.rawTests.restAssured;
     playwrightCode.textContent = payload.rawTests.playwright;
     paths.innerHTML = `
@@ -76,6 +81,7 @@ generateButton.addEventListener("click", async () => {
     setActiveTab("restassured");
   } catch (error) {
     stats.textContent = error.message;
+    llmStatus.textContent = "LLM status unavailable.";
     restAssuredCode.textContent = "";
     playwrightCode.textContent = "";
   }

@@ -24,6 +24,10 @@
                 <option value="json">JSON</option>
               </select>
             </label>
+            <label class="llm-toggle">
+              <input id="useLlm" type="checkbox" />
+              Use LLM enhancements
+            </label>
             <button id="generateButton">Generate tests</button>
           </div>
           <textarea id="specInput" spellcheck="false"></textarea>
@@ -31,6 +35,7 @@
 
         <div class="panel output-panel">
           <div class="stats" id="stats">Ready for a spec.</div>
+          <div class="llm-status" id="llmStatus">LLM mode is off.</div>
           <div class="paths" id="paths"></div>
           <div class="tabs">
             <button class="tab active" data-target="restassured">REST Assured</button>
