@@ -8,6 +8,7 @@
   --error-bg: #fff2ef;
   --error-border: #ef4444;
   --editor-line-height: 1.45;
+  --editor-font-size: 1rem;
 }
 
 * {
@@ -171,7 +172,7 @@ button:disabled {
   color: #7c6f60;
   text-align: right;
   font-family: Consolas, monospace;
-  font-size: 0.92rem;
+  font-size: var(--editor-font-size);
   line-height: var(--editor-line-height);
   user-select: none;
   overflow: hidden;
@@ -194,6 +195,7 @@ textarea {
   background: transparent;
   line-height: var(--editor-line-height);
   font-family: Consolas, monospace;
+  font-size: var(--editor-font-size);
 }
 
 .validation-panel {
