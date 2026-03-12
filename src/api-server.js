@@ -7,6 +7,7 @@ const { generateFromSpec, readOutputFiles } = require("./generate");
 const PORT = Number(process.env.PORT || 3001);
 const UI_DIR = path.join(__dirname, "..", "ui");
 const OUTPUT_ROOT = path.join(process.cwd(), ".tmp", "ui-runs");
+const YAML_BUNDLE_PATH = path.join(process.cwd(), "node_modules", "js-yaml", "dist", "js-yaml.min.js");
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
@@ -65,7 +66,7 @@ async function handleGenerate(request, response) {
 
     if (!specText.trim()) {
       sendJson(response, 400, {
-        error: "Please provide an OpenAPI spec.",
+        error: "Please provide an OpenAPI or Swagger spec.",
         validationErrors: [{ line: 1, column: 1, message: "The spec editor is empty." }]
       });
       return;
@@ -120,6 +121,11 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "GET" && request.url === "/styles.css") {
     sendFile(response, path.join(UI_DIR, "styles.css"), "text/css; charset=utf-8");
+    return;
+  }
+
+  if (request.method === "GET" && request.url === "/vendor/js-yaml.min.js") {
+    sendFile(response, YAML_BUNDLE_PATH, "application/javascript; charset=utf-8");
     return;
   }
 
