@@ -34,6 +34,7 @@ const paths = document.querySelector("#paths");
 const validationPanel = document.querySelector("#validationPanel");
 const validationList = document.querySelector("#validationList");
 const lineNumbers = document.querySelector("#lineNumbers");
+const lineNumbersContent = document.querySelector("#lineNumbersContent");
 const llmInfoTrigger = document.querySelector("#llmInfoTrigger");
 const llmTooltip = document.querySelector("#llmTooltip");
 const restAssuredCode = document.querySelector("#restassured");
@@ -150,10 +151,15 @@ function getEditorMaxHeight() {
   return Math.max(420, Math.floor(window.innerHeight * viewportRatio));
 }
 
+function syncLineNumberScroll() {
+  lineNumbersContent.style.transform = `translateY(${-specInput.scrollTop}px)`;
+}
+
 function updateLineNumbers() {
   const lineCount = Math.max(1, specInput.value.split(/\r?\n/).length);
-  lineNumbers.textContent = Array.from({ length: lineCount }, (_, index) => index + 1).join("\n");
-  lineNumbers.scrollTop = specInput.scrollTop;
+  lineNumbersContent.textContent = Array.from({ length: lineCount }, (_, index) => index + 1).join("\n");
+  lineNumbers.style.height = `${specInput.clientHeight}px`;
+  syncLineNumberScroll();
 }
 
 function resizeEditor() {
@@ -215,9 +221,7 @@ function toggleTooltip(forceVisible) {
 }
 
 specInput.addEventListener("input", syncCurrentEditorState);
-specInput.addEventListener("scroll", () => {
-  lineNumbers.scrollTop = specInput.scrollTop;
-});
+specInput.addEventListener("scroll", syncLineNumberScroll);
 window.addEventListener("resize", resizeEditor);
 
 fileType.addEventListener("change", () => {
@@ -293,3 +297,4 @@ generateButton.addEventListener("click", async () => {
     playwrightCode.textContent = "";
   }
 });
+
