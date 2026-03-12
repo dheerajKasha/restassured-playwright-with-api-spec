@@ -19,6 +19,8 @@ paths:
           description: Invalid request
 `;
 
+const HTTP_METHODS = new Set(["get", "post", "put", "patch", "delete"]);
+
 const editorState = {
   yaml: sampleSpec,
   json: ""
@@ -68,6 +70,34 @@ function findKeyLine(content, key) {
   return index >= 0 ? index + 1 : 1;
 }
 
+function findLiteralLine(content, literal, fallbackLine = 1) {
+  const lines = content.split(/\r?\n/);
+  const index = lines.findIndex((line) => line.includes(literal));
+  return index >= 0 ? index + 1 : fallbackLine;
+}
+
+function findOperationLine(content, pathName, method) {
+  const lines = content.split(/\r?\n/);
+  const pathIndex = lines.findIndex((line) => line.includes(pathName));
+
+  if (pathIndex < 0) {
+    return 1;
+  }
+
+  for (let index = pathIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (/^\S/.test(line)) {
+      break;
+    }
+
+    if (line.trim().startsWith(`${method}:`)) {
+      return index + 1;
+    }
+  }
+
+  return pathIndex + 1;
+}
+
 function validateSpecShape(spec, content) {
   const errors = [];
 
@@ -84,13 +114,83 @@ function validateSpecShape(spec, content) {
     });
   }
 
-  if (!spec.paths || typeof spec.paths !== "object") {
+  if (!spec.info || typeof spec.info !== "object" || Array.isArray(spec.info)) {
+    errors.push({ message: "Missing required top-level 'info' object.", line: findKeyLine(content, "info"), column: 1 });
+  } else {
+    if (!spec.info.title) {
+      errors.push({ message: "Missing required 'info.title' field.", line: findKeyLine(content, "title"), column: 1 });
+    }
+
+    if (!spec.info.version) {
+      errors.push({ message: "Missing required 'info.version' field.", line: findKeyLine(content, "version"), column: 1 });
+    }
+  }
+
+  if (!spec.paths || typeof spec.paths !== "object" || Array.isArray(spec.paths)) {
     errors.push({
       message: "Missing required top-level 'paths' object.",
       line: findKeyLine(content, "paths"),
       column: 1
     });
+    return errors;
   }
+
+  const operationIds = new Map();
+
+  Object.entries(spec.paths).forEach(([pathName, pathItem]) => {
+    const pathLine = findLiteralLine(content, pathName, findKeyLine(content, "paths"));
+
+    if (!pathItem || typeof pathItem !== "object" || Array.isArray(pathItem)) {
+      errors.push({ message: `Path '${pathName}' must map to an object.`, line: pathLine, column: 1 });
+      return;
+    }
+
+    const methods = Object.keys(pathItem).filter((key) => HTTP_METHODS.has(key));
+
+    if (methods.length === 0) {
+      errors.push({ message: `Path '${pathName}' must define at least one HTTP operation.`, line: pathLine, column: 1 });
+      return;
+    }
+
+    methods.forEach((method) => {
+      const operation = pathItem[method];
+      const operationLine = findOperationLine(content, pathName, method);
+
+      if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
+        errors.push({ message: `Operation '${method.toUpperCase()} ${pathName}' must be an object.`, line: operationLine, column: 1 });
+        return;
+      }
+
+      if (!operation.responses || typeof operation.responses !== "object" || Object.keys(operation.responses).length === 0) {
+        errors.push({ message: `Operation '${method.toUpperCase()} ${pathName}' must define at least one response.`, line: operationLine, column: 1 });
+      }
+
+      if (operation.operationId) {
+        if (!operationIds.has(operation.operationId)) {
+          operationIds.set(operation.operationId, []);
+        }
+        operationIds.get(operation.operationId).push(operationLine);
+      }
+
+      (operation.parameters || []).forEach((parameter, index) => {
+        if (parameter && typeof parameter === "object" && !parameter.$ref && !parameter.schema) {
+          errors.push({
+            message: `Parameter '${parameter.name || index + 1}' in '${method.toUpperCase()} ${pathName}' is missing a schema.`,
+            line: operationLine,
+            column: 1
+          });
+        }
+      });
+    });
+  });
+
+  operationIds.forEach((lines, operationId) => {
+    if (lines.length > 1) {
+      lines.forEach((line) => {
+        errors.push({ message: `Duplicate operationId '${operationId}' found.`, line, column: 1 });
+      });
+    }
+  });
 
   return errors;
 }
@@ -203,7 +303,7 @@ function applyValidationState() {
     generateButton.disabled = false;
   } else {
     renderValidationErrors(validation.errors);
-    stats.textContent = "Fix the validation issues before generating tests.";
+    stats.textContent = `Fix ${validation.errors.length} validation issue${validation.errors.length === 1 ? "" : "s"} before generating tests.`;
     generateButton.disabled = true;
   }
 
@@ -253,7 +353,7 @@ generateButton.addEventListener("click", async () => {
 
   if (!validation.valid) {
     renderValidationErrors(validation.errors);
-    stats.textContent = "Fix the validation issues before generating tests.";
+    stats.textContent = `Fix ${validation.errors.length} validation issue${validation.errors.length === 1 ? "" : "s"} before generating tests.`;
     return;
   }
 
@@ -297,4 +397,3 @@ generateButton.addEventListener("click", async () => {
     playwrightCode.textContent = "";
   }
 });
-
