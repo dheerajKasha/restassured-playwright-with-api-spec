@@ -9,9 +9,9 @@
   <body>
     <main class="shell">
       <section class="hero">
-        <p class="eyebrow">OpenAPI to tests</p>
-        <h1>Generate REST Assured and Playwright API tests from your spec.</h1>
-        <p class="lede">Paste a Swagger or OpenAPI document, choose YAML or JSON, and inspect generated test code plus runnable project paths.</p>
+        <p class="eyebrow">OpenAPI or Swagger to tests</p>
+        <h1>Generate REST Assured and Playwright API tests from your OpenAPI or Swagger spec.</h1>
+        <p class="lede">Paste an OpenAPI or Swagger document, choose YAML or JSON, and inspect generated test code plus runnable project paths.</p>
       </section>
 
       <section class="workspace">
@@ -27,10 +27,15 @@
             <label class="llm-toggle">
               <input id="useLlm" type="checkbox" />
               Use LLM enhancements
+              <button type="button" class="info-trigger" id="llmInfoTrigger" aria-label="What does LLM enhancement do?">i</button>
+              <span class="tooltip" id="llmTooltip">When enabled, the app asks the configured LLM for extra negative and edge-case ideas in addition to the built-in heuristic test generation.</span>
             </label>
             <button id="generateButton">Generate tests</button>
           </div>
-          <textarea id="specInput" spellcheck="false"></textarea>
+          <div class="editor-shell">
+            <div id="lineNumbers" class="line-numbers" aria-hidden="true"></div>
+            <textarea id="specInput" spellcheck="false"></textarea>
+          </div>
           <section id="validationPanel" class="validation-panel hidden" aria-live="polite">
             <div class="validation-title">Validation errors</div>
             <div id="validationList"></div>
@@ -38,7 +43,7 @@
         </div>
 
         <div class="panel output-panel">
-          <div class="stats" id="stats">Ready for a spec.</div>
+          <div class="stats" id="stats">Ready for an OpenAPI or Swagger spec.</div>
           <div class="llm-status" id="llmStatus">LLM mode is off.</div>
           <div class="paths" id="paths"></div>
           <div class="tabs">
@@ -51,6 +56,7 @@
       </section>
     </main>
 
+    <script src="/vendor/js-yaml.min.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

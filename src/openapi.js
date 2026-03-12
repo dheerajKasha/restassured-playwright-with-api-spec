@@ -41,7 +41,7 @@ function validateSpecShape(spec, content) {
   const errors = [];
 
   if (!spec || typeof spec !== "object" || Array.isArray(spec)) {
-    errors.push(buildValidationError("The pasted content must parse into an OpenAPI object.", 1, 1));
+    errors.push(buildValidationError("The pasted content must parse into an OpenAPI or Swagger object.", 1, 1));
     return errors;
   }
 

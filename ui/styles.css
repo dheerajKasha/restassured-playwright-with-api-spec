@@ -7,6 +7,7 @@
   --border: #e5dccd;
   --error-bg: #fff2ef;
   --error-border: #ef4444;
+  --editor-line-height: 1.45;
 }
 
 * {
@@ -88,12 +89,48 @@ label {
 }
 
 .llm-toggle {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   background: #f5ebd8;
   padding: 10px 14px;
   border-radius: 999px;
+}
+
+.info-trigger {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: white;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.tooltip {
+  position: absolute;
+  left: 14px;
+  top: calc(100% + 10px);
+  width: min(320px, 70vw);
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #1f2937;
+  color: #f8fafc;
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.18);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.tooltip.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 select,
@@ -116,6 +153,31 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.editor-shell {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: start;
+}
+
+.line-numbers {
+  padding: 18px 10px 18px 0;
+  border-right: 1px solid var(--border);
+  background: #f7f1e6;
+  color: #7c6f60;
+  text-align: right;
+  font-family: Consolas, monospace;
+  font-size: 0.92rem;
+  line-height: var(--editor-line-height);
+  user-select: none;
+  overflow: hidden;
+  white-space: pre;
+}
+
 textarea {
   display: block;
   width: 100%;
@@ -125,7 +187,8 @@ textarea {
   resize: none;
   overflow-y: hidden;
   background: transparent;
-  line-height: 1.45;
+  line-height: var(--editor-line-height);
+  font-family: Consolas, monospace;
 }
 
 .validation-panel {
@@ -214,6 +277,10 @@ textarea {
 @media (max-width: 960px) {
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .editor-shell {
+    grid-template-columns: 48px minmax(0, 1fr);
   }
 
   textarea {
