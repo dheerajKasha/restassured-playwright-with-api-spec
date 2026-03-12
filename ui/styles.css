@@ -165,7 +165,7 @@ button:disabled {
 }
 
 .line-numbers {
-  padding: 18px 10px 18px 0;
+  position: relative;
   border-right: 1px solid var(--border);
   background: #f7f1e6;
   color: #7c6f60;
@@ -175,7 +175,12 @@ button:disabled {
   line-height: var(--editor-line-height);
   user-select: none;
   overflow: hidden;
+}
+
+.line-numbers-content {
+  padding: 18px 10px 18px 0;
   white-space: pre;
+  will-change: transform;
 }
 
 textarea {
