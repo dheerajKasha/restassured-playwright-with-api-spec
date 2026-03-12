@@ -1,61 +1,104 @@
 # AI Test Case Generator for APIs
 
-This repo contains a generator that reads an OpenAPI / Swagger file and produces:
+This project turns an OpenAPI or Swagger spec into executable API test assets.
 
-- REST Assured test stubs
-- Playwright API test stubs
-- runnable Maven and Playwright project scaffolds
-- a local web/API UI for interactive generation
-- heuristic and optional LLM-enhanced edge-case generation
+It currently supports:
 
-## Quick start
+- REST Assured test generation
+- Playwright API test generation
+- runnable Maven and Playwright scaffold projects
+- a local browser UI and HTTP API for interactive generation
+- heuristic negative and edge-case generation
+- optional OpenAI-powered case enrichment
+- YAML and JSON editor memory in the UI
+- auto-expanding editor behavior before scrollbars appear
+- line-aware validation errors for pasted YAML and JSON
 
-1. Install dependencies:
+## What the app does
+
+Given an OpenAPI spec, the app can generate:
+
+- raw REST Assured test files
+- raw Playwright API test files
+- a runnable Maven project for REST Assured
+- a runnable Playwright project
+- happy-path cases
+- negative cases
+- edge-oriented cases
+- optional extra LLM-suggested cases
+
+## Local setup
+
+Install dependencies:
 
 ```powershell
 npm.cmd install
 ```
 
-2. Generate tests and runnable scaffolds from the sample spec:
+## Run the browser UI
 
-```powershell
-npm.cmd run generate
-```
-
-3. Start the local web/API UI:
+Start the local UI server:
 
 ```powershell
 npm.cmd run ui
 ```
 
-Then open `http://127.0.0.1:3001`.
+Open:
 
-## Optional LLM mode
+```text
+http://127.0.0.1:3001
+```
 
-If you set `OPENAI_API_KEY`, the generator can ask an OpenAI model for additional high-value negative and edge cases.
+### UI features
+
+The browser app includes:
+
+- a YAML/JSON format switcher with separate editor state per format
+- an editor that grows to use available space before internal scrolling begins
+- inline validation feedback for invalid YAML or JSON
+- validation messages with exact line and column references
+- a toggle for optional LLM-based enrichment
+- generated REST Assured and Playwright output previews
+- generated scaffold output paths
+
+## Run the CLI generator
+
+Generate from the sample spec:
+
+```powershell
+npm.cmd run generate
+```
+
+Generate from your own spec:
+
+```powershell
+node src/index.js --input path\to\openapi.yaml --output generated
+```
+
+Generate with optional LLM enrichment:
 
 ```powershell
 $env:OPENAI_API_KEY="your-key"
 $env:OPENAI_MODEL="gpt-5"
-node src/index.js --input examples/user-api.yaml --output generated --llm
+node src/index.js --input path\to\openapi.yaml --output generated --llm
 ```
 
-The UI also includes a `Use LLM enhancements` toggle.
+## Generated output
 
-## Output
-
-A generation run writes:
+A run writes these outputs:
 
 - `generated/restassured/GeneratedApiTest.java`
 - `generated/playwright/generated-api.spec.js`
 - `generated/restassured-project/`
 - `generated/playwright-project/`
 
-The UI writes preview runs into `.tmp/ui-runs/`.
+The browser UI stores preview runs under:
 
-## Run the generated projects
+- `.tmp/ui-runs/`
 
-### REST Assured
+## Run the generated scaffold projects
+
+### REST Assured Maven project
 
 ```powershell
 cd generated/restassured-project
@@ -63,7 +106,13 @@ $env:BASE_URL="https://api.example.com"
 mvn test
 ```
 
-### Playwright API tests
+You can also override the base URL with:
+
+```powershell
+mvn test -DbaseUrl=https://api.example.com
+```
+
+### Playwright API project
 
 ```powershell
 cd generated/playwright-project
@@ -72,9 +121,25 @@ $env:BASE_URL="https://api.example.com"
 npm test
 ```
 
+## Validation behavior
+
+When invalid YAML or JSON is pasted into the UI, the app now:
+
+- blocks generation
+- validates the pasted content on the server
+- returns structured validation errors
+- shows the exact line and column when parsing fails
+- surfaces missing top-level OpenAPI fields such as `openapi`/`swagger` and `paths`
+
+## LLM mode
+
+If `OPENAI_API_KEY` is set, the app can ask an OpenAI model for additional high-value negative and edge scenarios.
+
+If no API key is set, the app falls back to heuristic-only generation automatically.
+
 ## Notes
 
-- YAML and JSON specs are supported.
-- Without `OPENAI_API_KEY`, the generator falls back to heuristic-only mode.
-- Runnable projects use environment-driven base URL configuration.
-- The scaffold ships with current REST Assured, JUnit, Playwright, and OpenAI SDK dependency versions as of March 11, 2026.
+- Supported input formats: YAML and JSON
+- The local UI is served by `src/api-server.js`
+- The CLI entry point is `src/index.js`
+- Current dependencies include `js-yaml` and `openai`
