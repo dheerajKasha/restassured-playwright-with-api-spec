@@ -4,6 +4,7 @@ const yaml = require("js-yaml");
 
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
 const HTTP_METHOD_SET = new Set(HTTP_METHODS);
+const SWAGGER2_PARAMETER_TYPES = new Set(["path", "query", "header", "formData"]);
 
 function buildValidationError(message, line, column) {
   return {
@@ -42,6 +43,28 @@ function findLiteralLine(content, literal, fallbackLine = 1) {
   const lines = content.split(/\r?\n/);
   const index = lines.findIndex((line) => line.includes(literal));
   return index >= 0 ? index + 1 : fallbackLine;
+}
+
+function findOperationLine(content, pathName, method) {
+  const lines = content.split(/\r?\n/);
+  const pathIndex = lines.findIndex((line) => line.includes(pathName));
+
+  if (pathIndex < 0) {
+    return 1;
+  }
+
+  for (let index = pathIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (/^\S/.test(line)) {
+      break;
+    }
+
+    if (line.trim().startsWith(`${method}:`)) {
+      return index + 1;
+    }
+  }
+
+  return pathIndex + 1;
 }
 
 function findSchemaPathLine(content, segments, fallbackLine = 1) {
@@ -151,7 +174,7 @@ function collectSchemaValidationErrors(spec, content) {
           return;
         }
 
-        const operationLine = findLiteralLine(content, `${method}:`, findLiteralLine(content, pathName, 1));
+        const operationLine = findOperationLine(content, pathName, method);
 
         (operation.parameters || []).forEach((parameter, index) => {
           if (!parameter || typeof parameter !== "object" || parameter.$ref) {
@@ -204,6 +227,18 @@ function collectSchemaValidationErrors(spec, content) {
   return errors;
 }
 
+function parameterNeedsSchema(spec, parameter) {
+  if (!parameter || typeof parameter !== "object" || parameter.$ref) {
+    return false;
+  }
+
+  if (spec.swagger === "2.0") {
+    return parameter.in === "body" ? !parameter.schema : !parameter.type;
+  }
+
+  return !parameter.schema;
+}
+
 function validateSpecShape(spec, content) {
   const errors = [];
 
@@ -216,9 +251,80 @@ function validateSpecShape(spec, content) {
     errors.push(buildValidationError("Missing required top-level 'openapi' or 'swagger' field.", findKeyLine(content, "openapi"), 1));
   }
 
-  if (!spec.paths || typeof spec.paths !== "object") {
-    errors.push(buildValidationError("Missing required top-level 'paths' object.", findKeyLine(content, "paths"), 1));
+  if (!spec.info || typeof spec.info !== "object" || Array.isArray(spec.info)) {
+    errors.push(buildValidationError("Missing required top-level 'info' object.", findKeyLine(content, "info"), 1));
+  } else {
+    if (!spec.info.title) {
+      errors.push(buildValidationError("Missing required 'info.title' field.", findKeyLine(content, "title"), 1));
+    }
+
+    if (!spec.info.version) {
+      errors.push(buildValidationError("Missing required 'info.version' field.", findKeyLine(content, "version"), 1));
+    }
   }
+
+  if (!spec.paths || typeof spec.paths !== "object" || Array.isArray(spec.paths)) {
+    errors.push(buildValidationError("Missing required top-level 'paths' object.", findKeyLine(content, "paths"), 1));
+    return errors;
+  }
+
+  const operationIds = new Map();
+
+  Object.entries(spec.paths).forEach(([pathName, pathItem]) => {
+    const pathLine = findLiteralLine(content, pathName, findKeyLine(content, "paths"));
+
+    if (!pathItem || typeof pathItem !== "object" || Array.isArray(pathItem)) {
+      errors.push(buildValidationError(`Path '${pathName}' must map to an object.`, pathLine, 1));
+      return;
+    }
+
+    const methods = Object.keys(pathItem).filter((key) => HTTP_METHOD_SET.has(key));
+
+    if (methods.length === 0) {
+      errors.push(buildValidationError(`Path '${pathName}' must define at least one HTTP operation.`, pathLine, 1));
+      return;
+    }
+
+    methods.forEach((method) => {
+      const operation = pathItem[method];
+      const operationLine = findOperationLine(content, pathName, method);
+
+      if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
+        errors.push(buildValidationError(`Operation '${method.toUpperCase()} ${pathName}' must be an object.`, operationLine, 1));
+        return;
+      }
+
+      if (!operation.responses || typeof operation.responses !== "object" || Object.keys(operation.responses).length === 0) {
+        errors.push(buildValidationError(`Operation '${method.toUpperCase()} ${pathName}' must define at least one response.`, operationLine, 1));
+      }
+
+      if (operation.operationId) {
+        if (!operationIds.has(operation.operationId)) {
+          operationIds.set(operation.operationId, []);
+        }
+
+        operationIds.get(operation.operationId).push(operationLine);
+      }
+
+      (operation.parameters || []).forEach((parameter, index) => {
+        if (parameterNeedsSchema(spec, parameter)) {
+          const parameterName = parameter.name || index + 1;
+          const schemaMessage = spec.swagger === "2.0" && parameter.in !== "body"
+            ? `Parameter '${parameterName}' in '${method.toUpperCase()} ${pathName}' is missing a type.`
+            : `Parameter '${parameterName}' in '${method.toUpperCase()} ${pathName}' is missing a schema.`;
+          errors.push(buildValidationError(schemaMessage, operationLine, 1));
+        }
+      });
+    });
+  });
+
+  operationIds.forEach((lines, operationId) => {
+    if (lines.length > 1) {
+      lines.forEach((line) => {
+        errors.push(buildValidationError(`Duplicate operationId '${operationId}' found.`, line, 1));
+      });
+    }
+  });
 
   return errors;
 }
