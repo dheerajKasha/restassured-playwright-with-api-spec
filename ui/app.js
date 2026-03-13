@@ -98,6 +98,178 @@ function findOperationLine(content, pathName, method) {
   return pathIndex + 1;
 }
 
+function findSchemaPathLine(content, segments, fallbackLine = 1) {
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index];
+    if (typeof segment !== "string" || !segment) {
+      continue;
+    }
+
+    const line = findLiteralLine(content, `${segment}:`, fallbackLine);
+    if (line !== fallbackLine || index === segments.length - 1) {
+      return line;
+    }
+  }
+
+  return fallbackLine;
+}
+
+function schemaHasShape(schema) {
+  return Boolean(
+    schema.type ||
+      schema.properties ||
+      schema.items ||
+      schema.allOf ||
+      schema.oneOf ||
+      schema.anyOf ||
+      schema.enum ||
+      schema.additionalProperties
+  );
+}
+
+function validateSchemaNode(schema, content, pathSegments, fallbackLine = 1) {
+  const line = findSchemaPathLine(content, pathSegments, fallbackLine);
+  const label = pathSegments.join(".");
+
+  if (schema === null || schema === undefined) {
+    return [{ message: `Schema '${label}' is missing a type or nested schema definition.`, line, column: 1 }];
+  }
+
+  if (typeof schema !== "object" || Array.isArray(schema)) {
+    return [{ message: `Schema '${label}' must be an object.`, line, column: 1 }];
+  }
+
+  if (schema.$ref) {
+    return [];
+  }
+
+  const errors = [];
+
+  if (!schemaHasShape(schema)) {
+    errors.push({ message: `Schema '${label}' is missing a type or nested schema definition.`, line, column: 1 });
+    return errors;
+  }
+
+  if (schema.type === "array" && !schema.items) {
+    errors.push({ message: `Array schema '${label}' must define 'items'.`, line, column: 1 });
+  }
+
+  if (schema.items) {
+    errors.push(...validateSchemaNode(schema.items, content, [...pathSegments, "items"], line));
+  }
+
+  if (schema.properties && typeof schema.properties === "object") {
+    Object.entries(schema.properties).forEach(([propertyName, propertySchema]) => {
+      errors.push(...validateSchemaNode(propertySchema, content, [...pathSegments, propertyName], line));
+    });
+  }
+
+  ["allOf", "oneOf", "anyOf"].forEach((keyword) => {
+    if (Array.isArray(schema[keyword])) {
+      schema[keyword].forEach((childSchema, index) => {
+        errors.push(...validateSchemaNode(childSchema, content, [...pathSegments, `${keyword}[${index}]`], line));
+      });
+    }
+  });
+
+  if (schema.additionalProperties && typeof schema.additionalProperties === "object") {
+    errors.push(...validateSchemaNode(schema.additionalProperties, content, [...pathSegments, "additionalProperties"], line));
+  }
+
+  return errors;
+}
+
+function collectSchemaValidationErrors(spec, content) {
+  const errors = [];
+
+  if (spec.definitions && typeof spec.definitions === "object") {
+    Object.entries(spec.definitions).forEach(([name, schema]) => {
+      errors.push(...validateSchemaNode(schema, content, ["definitions", name], findKeyLine(content, "definitions")));
+    });
+  }
+
+  if (spec.components && spec.components.schemas && typeof spec.components.schemas === "object") {
+    Object.entries(spec.components.schemas).forEach(([name, schema]) => {
+      errors.push(...validateSchemaNode(schema, content, ["components", "schemas", name], findKeyLine(content, "schemas")));
+    });
+  }
+
+  if (spec.paths && typeof spec.paths === "object") {
+    Object.entries(spec.paths).forEach(([pathName, pathItem]) => {
+      if (!pathItem || typeof pathItem !== "object") {
+        return;
+      }
+
+      Object.entries(pathItem).forEach(([method, operation]) => {
+        if (!HTTP_METHODS.has(method) || !operation || typeof operation !== "object") {
+          return;
+        }
+
+        const operationLine = findOperationLine(content, pathName, method);
+
+        (operation.parameters || []).forEach((parameter, index) => {
+          if (!parameter || typeof parameter !== "object" || parameter.$ref) {
+            return;
+          }
+
+          if (parameter.schema && typeof parameter.schema === "object") {
+            errors.push(
+              ...validateSchemaNode(
+                parameter.schema,
+                content,
+                [pathName, method, "parameters", parameter.name || String(index + 1)],
+                operationLine
+              )
+            );
+          }
+        });
+
+        if (operation.requestBody && operation.requestBody.content) {
+          Object.entries(operation.requestBody.content).forEach(([mediaType, media]) => {
+            if (media && media.schema) {
+              errors.push(...validateSchemaNode(media.schema, content, [pathName, method, "requestBody", mediaType], operationLine));
+            }
+          });
+        }
+
+        if (operation.responses && typeof operation.responses === "object") {
+          Object.entries(operation.responses).forEach(([statusCode, response]) => {
+            if (!response || typeof response !== "object") {
+              return;
+            }
+
+            if (response.schema) {
+              errors.push(...validateSchemaNode(response.schema, content, [pathName, method, "responses", statusCode], operationLine));
+            }
+
+            if (response.content && typeof response.content === "object") {
+              Object.entries(response.content).forEach(([mediaType, media]) => {
+                if (media && media.schema) {
+                  errors.push(...validateSchemaNode(media.schema, content, [pathName, method, "responses", statusCode, mediaType], operationLine));
+                }
+              });
+            }
+          });
+        }
+      });
+    });
+  }
+
+  return errors;
+}
+
+function parameterNeedsSchema(spec, parameter) {
+  if (!parameter || typeof parameter !== "object" || parameter.$ref) {
+    return false;
+  }
+
+  if (spec.swagger === "2.0") {
+    return parameter.in === "body" ? !parameter.schema : !parameter.type;
+  }
+
+  return !parameter.schema;
+}
+
 function validateSpecShape(spec, content) {
   const errors = [];
 
@@ -173,12 +345,12 @@ function validateSpecShape(spec, content) {
       }
 
       (operation.parameters || []).forEach((parameter, index) => {
-        if (parameter && typeof parameter === "object" && !parameter.$ref && !parameter.schema) {
-          errors.push({
-            message: `Parameter '${parameter.name || index + 1}' in '${method.toUpperCase()} ${pathName}' is missing a schema.`,
-            line: operationLine,
-            column: 1
-          });
+        if (parameterNeedsSchema(spec, parameter)) {
+          const parameterName = parameter.name || index + 1;
+          const schemaMessage = spec.swagger === "2.0" && parameter.in !== "body"
+            ? `Parameter '${parameterName}' in '${method.toUpperCase()} ${pathName}' is missing a type.`
+            : `Parameter '${parameterName}' in '${method.toUpperCase()} ${pathName}' is missing a schema.`;
+          errors.push({ message: schemaMessage, line: operationLine, column: 1 });
         }
       });
     });
@@ -210,9 +382,11 @@ function validateCurrentSpec() {
       ? window.jsyaml.load(currentValue)
       : JSON.parse(currentValue);
     const shapeErrors = validateSpecShape(parsed, currentValue);
+    const schemaErrors = shapeErrors.length === 0 ? collectSchemaValidationErrors(parsed, currentValue) : [];
+    const errors = [...shapeErrors, ...schemaErrors];
 
-    if (shapeErrors.length > 0) {
-      return { valid: false, errors: shapeErrors };
+    if (errors.length > 0) {
+      return { valid: false, errors };
     }
 
     return { valid: true, errors: [] };
@@ -236,6 +410,12 @@ function validateCurrentSpec() {
   }
 }
 
+function setEditorMetrics() {
+  const computed = window.getComputedStyle(specInput);
+  document.documentElement.style.setProperty("--editor-font-size", computed.fontSize);
+  document.documentElement.style.setProperty("--editor-line-height", computed.lineHeight === "normal" ? "24px" : computed.lineHeight);
+}
+
 function setActiveTab(targetId) {
   tabs.forEach((tab) => {
     tab.classList.toggle("active", tab.dataset.target === targetId);
@@ -257,12 +437,13 @@ function syncLineNumberScroll() {
 
 function updateLineNumbers() {
   const lineCount = Math.max(1, specInput.value.split(/\r?\n/).length);
-  lineNumbersContent.textContent = Array.from({ length: lineCount }, (_, index) => index + 1).join("\n");
+  lineNumbersContent.innerHTML = Array.from({ length: lineCount }, (_, index) => `<div class="line-number">${index + 1}</div>`).join("");
   lineNumbers.style.height = `${specInput.clientHeight}px`;
   syncLineNumberScroll();
 }
 
 function resizeEditor() {
+  setEditorMetrics();
   specInput.style.height = "auto";
   const targetHeight = Math.min(specInput.scrollHeight, getEditorMaxHeight());
   specInput.style.height = `${Math.max(420, targetHeight)}px`;

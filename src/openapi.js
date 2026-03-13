@@ -4,6 +4,7 @@ const yaml = require("js-yaml");
 
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
 const HTTP_METHOD_SET = new Set(HTTP_METHODS);
+const SWAGGER2_PARAMETER_TYPES = new Set(["path", "query", "header", "formData"]);
 
 function buildValidationError(message, line, column) {
   return {
@@ -64,6 +65,178 @@ function findOperationLine(content, pathName, method) {
   }
 
   return pathIndex + 1;
+}
+
+function findSchemaPathLine(content, segments, fallbackLine = 1) {
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index];
+    if (typeof segment !== "string" || !segment) {
+      continue;
+    }
+
+    const line = findLiteralLine(content, `${segment}:`, fallbackLine);
+    if (line !== fallbackLine || index === segments.length - 1) {
+      return line;
+    }
+  }
+
+  return fallbackLine;
+}
+
+function schemaHasShape(schema) {
+  return Boolean(
+    schema.type ||
+      schema.properties ||
+      schema.items ||
+      schema.allOf ||
+      schema.oneOf ||
+      schema.anyOf ||
+      schema.enum ||
+      schema.additionalProperties
+  );
+}
+
+function validateSchemaNode(schema, content, pathSegments, fallbackLine = 1) {
+  const line = findSchemaPathLine(content, pathSegments, fallbackLine);
+  const label = pathSegments.join(".");
+
+  if (schema === null || schema === undefined) {
+    return [buildValidationError(`Schema '${label}' is missing a type or nested schema definition.`, line, 1)];
+  }
+
+  if (typeof schema !== "object" || Array.isArray(schema)) {
+    return [buildValidationError(`Schema '${label}' must be an object.`, line, 1)];
+  }
+
+  if (schema.$ref) {
+    return [];
+  }
+
+  const errors = [];
+
+  if (!schemaHasShape(schema)) {
+    errors.push(buildValidationError(`Schema '${label}' is missing a type or nested schema definition.`, line, 1));
+    return errors;
+  }
+
+  if (schema.type === "array" && !schema.items) {
+    errors.push(buildValidationError(`Array schema '${label}' must define 'items'.`, line, 1));
+  }
+
+  if (schema.items) {
+    errors.push(...validateSchemaNode(schema.items, content, [...pathSegments, "items"], line));
+  }
+
+  if (schema.properties && typeof schema.properties === "object") {
+    Object.entries(schema.properties).forEach(([propertyName, propertySchema]) => {
+      errors.push(...validateSchemaNode(propertySchema, content, [...pathSegments, propertyName], line));
+    });
+  }
+
+  ["allOf", "oneOf", "anyOf"].forEach((keyword) => {
+    if (Array.isArray(schema[keyword])) {
+      schema[keyword].forEach((childSchema, index) => {
+        errors.push(...validateSchemaNode(childSchema, content, [...pathSegments, `${keyword}[${index}]`], line));
+      });
+    }
+  });
+
+  if (schema.additionalProperties && typeof schema.additionalProperties === "object") {
+    errors.push(...validateSchemaNode(schema.additionalProperties, content, [...pathSegments, "additionalProperties"], line));
+  }
+
+  return errors;
+}
+
+function collectSchemaValidationErrors(spec, content) {
+  const errors = [];
+
+  if (spec.definitions && typeof spec.definitions === "object") {
+    Object.entries(spec.definitions).forEach(([name, schema]) => {
+      errors.push(...validateSchemaNode(schema, content, ["definitions", name], findKeyLine(content, "definitions")));
+    });
+  }
+
+  if (spec.components && spec.components.schemas && typeof spec.components.schemas === "object") {
+    Object.entries(spec.components.schemas).forEach(([name, schema]) => {
+      errors.push(...validateSchemaNode(schema, content, ["components", "schemas", name], findKeyLine(content, "schemas")));
+    });
+  }
+
+  if (spec.paths && typeof spec.paths === "object") {
+    Object.entries(spec.paths).forEach(([pathName, pathItem]) => {
+      if (!pathItem || typeof pathItem !== "object") {
+        return;
+      }
+
+      Object.entries(pathItem).forEach(([method, operation]) => {
+        if (!HTTP_METHOD_SET.has(method) || !operation || typeof operation !== "object") {
+          return;
+        }
+
+        const operationLine = findOperationLine(content, pathName, method);
+
+        (operation.parameters || []).forEach((parameter, index) => {
+          if (!parameter || typeof parameter !== "object" || parameter.$ref) {
+            return;
+          }
+
+          if (parameter.schema && typeof parameter.schema === "object") {
+            errors.push(
+              ...validateSchemaNode(
+                parameter.schema,
+                content,
+                [pathName, method, "parameters", parameter.name || String(index + 1)],
+                operationLine
+              )
+            );
+          }
+        });
+
+        if (operation.requestBody && operation.requestBody.content) {
+          Object.entries(operation.requestBody.content).forEach(([mediaType, media]) => {
+            if (media && media.schema) {
+              errors.push(...validateSchemaNode(media.schema, content, [pathName, method, "requestBody", mediaType], operationLine));
+            }
+          });
+        }
+
+        if (operation.responses && typeof operation.responses === "object") {
+          Object.entries(operation.responses).forEach(([statusCode, response]) => {
+            if (!response || typeof response !== "object") {
+              return;
+            }
+
+            if (response.schema) {
+              errors.push(...validateSchemaNode(response.schema, content, [pathName, method, "responses", statusCode], operationLine));
+            }
+
+            if (response.content && typeof response.content === "object") {
+              Object.entries(response.content).forEach(([mediaType, media]) => {
+                if (media && media.schema) {
+                  errors.push(...validateSchemaNode(media.schema, content, [pathName, method, "responses", statusCode, mediaType], operationLine));
+                }
+              });
+            }
+          });
+        }
+      });
+    });
+  }
+
+  return errors;
+}
+
+function parameterNeedsSchema(spec, parameter) {
+  if (!parameter || typeof parameter !== "object" || parameter.$ref) {
+    return false;
+  }
+
+  if (spec.swagger === "2.0") {
+    return parameter.in === "body" ? !parameter.schema : !parameter.type;
+  }
+
+  return !parameter.schema;
 }
 
 function validateSpecShape(spec, content) {
@@ -134,12 +307,12 @@ function validateSpecShape(spec, content) {
       }
 
       (operation.parameters || []).forEach((parameter, index) => {
-        if (parameter && typeof parameter === "object" && !parameter.$ref && !parameter.schema) {
-          errors.push(buildValidationError(
-            `Parameter '${parameter.name || index + 1}' in '${method.toUpperCase()} ${pathName}' is missing a schema.`,
-            operationLine,
-            1
-          ));
+        if (parameterNeedsSchema(spec, parameter)) {
+          const parameterName = parameter.name || index + 1;
+          const schemaMessage = spec.swagger === "2.0" && parameter.in !== "body"
+            ? `Parameter '${parameterName}' in '${method.toUpperCase()} ${pathName}' is missing a type.`
+            : `Parameter '${parameterName}' in '${method.toUpperCase()} ${pathName}' is missing a schema.`;
+          errors.push(buildValidationError(schemaMessage, operationLine, 1));
         }
       });
     });
@@ -168,11 +341,13 @@ function validateSpecContent(content, extension) {
   try {
     const spec = parseSpecContent(content, extension);
     const shapeErrors = validateSpecShape(spec, content);
+    const schemaErrors = shapeErrors.length === 0 ? collectSchemaValidationErrors(spec, content) : [];
+    const errors = [...shapeErrors, ...schemaErrors];
 
-    if (shapeErrors.length > 0) {
+    if (errors.length > 0) {
       return {
         valid: false,
-        errors: shapeErrors
+        errors
       };
     }
 
