@@ -1,5 +1,7 @@
 # AI Test Case Generator for APIs
 
+<img width="1337" height="947" alt="image" src="https://github.com/user-attachments/assets/634a4c51-cd75-4626-9980-a934d6cb4656" />
+
 This project turns an OpenAPI or Swagger spec into executable API test assets.
 
 It currently supports:
